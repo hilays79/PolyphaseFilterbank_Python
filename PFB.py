@@ -23,7 +23,7 @@ def pfb_fir_frontend(x, win_coeffs, M, P):
     W = x.shape[0] // M // P
     x_p = x.reshape((W*M, P)).T
     h_p = win_coeffs.reshape((M, P)).T
-    x_summed = np.zeros((P, M * W - M + 1))
+    x_summed = np.zeros((P, M * W - M + 1), dtype=complex)
     for t in range(0, M*W-M + 1):
         x_weighted = x_p[:, t:t+M] * h_p
         x_summed[:, t] = x_weighted.sum(axis=1)
@@ -90,7 +90,7 @@ def brute_force_spectrometer(x, n_taps, n_chan, n_int, window_fn="hamming"):
         freq_shift = np.exp(2j * np.pi * k * np.arange(num_taps) / P)
         bandpass_filter = prototype_filter * freq_shift
         L = len(bandpass_filter)
-        channel_data = np.zeros(N, dtype=np.complex128)
+        channel_data = np.zeros(N, dtype=complex)
         
         # Convolve the signal with this specific channel's filter
         channel_data = np.convolve(x, bandpass_filter, mode='full')[:N]
@@ -150,9 +150,6 @@ def standard_fft_spectrometer(x, n_chan, n_int, window_fn="rectangular"):
     x_psd = trimmed_power.reshape((num_integrated_blocks, n_int, P)).mean(axis=1)
     
     return x_psd
-
-
-
 
 if __name__ == "__main__":
     M, P, W = 4, 256, 100

@@ -37,22 +37,38 @@ def generate_sine_signal(n_taps, n_chan, n_windows, freq, include_noise=True, co
     
     return np.squeeze(data) # Remove any unnecessary dimensions for compatibility with downstream processing
 
-def generate_dirac_comb_signal(n_taps, n_chan, n_windows, delta_period, delta_start, include_noise=True):
-    M = n_taps # Number of taps
-    P = n_chan # Number of 'branches', also fft length
-    W = n_windows # Number of windows of length M*P in input time stream
-    delta_period = delta_period # Number of samples between each dirac pulse (e.g. 256 for a dirac comb with one pulse per P samples)
-    delta_start = delta_start # Start position of the first dirac pulse
+def generate_dirac_comb_signal(n_taps, n_chan, n_windows, delta_period, delta_start, include_noise=True, real=True, is_complex=False):
+    M = n_taps           # Number of taps
+    P = n_chan           # Number of 'branches', also fft length
+    W = n_windows        # Number of windows of length M*P in input time stream
+    total_samples = M * P * W
 
-    # Generate a test data stream
-    samples = np.arange(M*P*W)
-    if include_noise: noise = np.random.normal(loc=0.5, scale=0.1, size=M*P*W)
-    else: noise = np.zeros(M*P*W)
+    # 1. Determine the complex amplitude of the Dirac pulses
+    amp = 0 + 0j
+    if real:
+        amp += 1
+    if is_complex:
+        amp += 1j
 
-    # Create a dirac comb signal
-    dirac_comb = np.zeros(M*P*W)
-    dirac_comb[delta_start::delta_period] = 1
+    # 2. Create the complex Dirac comb signal
+    dirac_comb = np.zeros(total_samples, dtype=complex)
+    dirac_comb[delta_start::delta_period] = amp
+
+    # 3. Generate the noise conditionally based on the active components
+    # Start with a strictly zero complex array
+    noise = np.zeros(total_samples, dtype=complex)
+    
+    if include_noise: 
+        if real:
+            # Add noise only to the real component
+            noise += np.random.normal(loc=0.5, scale=0.1, size=total_samples)
+        if is_complex:
+            # Add noise only to the imaginary component
+            noise_imag = np.random.normal(loc=0.5, scale=0.1, size=total_samples)
+            noise += 1j * noise_imag
+
     data = noise + dirac_comb
+    
     return data
 
 if __name__ == "__main__":

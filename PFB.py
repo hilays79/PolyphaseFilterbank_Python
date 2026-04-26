@@ -38,7 +38,7 @@ def pfb_filterbank(x, win_coeffs, M, P):
     x_pfb = fft(x_fir, P)
     return x_pfb
 
-def pfb_spectrometer(x, n_taps, n_chan, n_int, window_fn="hamming"):
+def pfb_spectrometer(x, n_taps, n_chan, n_int, window_fn="hamming", PSD=True):
     M = n_taps
     P = n_chan
     
@@ -47,15 +47,22 @@ def pfb_spectrometer(x, n_taps, n_chan, n_int, window_fn="hamming"):
     pg = np.sum(np.abs(win_coeffs)**2)
     win_coeffs /= pg**.5 # Normalize for processing gain
     
-    # Apply frontend, take FFT, then take power (i.e. square)
+    # Apply frontend, take FFT to get complex voltages
     x_pfb = pfb_filterbank(x, win_coeffs, M, P)
-    x_psd = np.real(x_pfb * np.conj(x_pfb))
+    
+    # If PSD is False, return the raw complex filterbank output immediately
+    if not PSD:
+        return x_pfb
+        
+    # Otherwise, calculate Power Spectral Density (i.e. square)
+    x_psd = np.real(x_pfb * np.conj(x_pfb)) 
     
     # Trim array so we can do time integration
-    x_psd = x_psd[:np.round(x_psd.shape[0]//n_int)*n_int]
+    valid_length = (x_psd.shape[0] // n_int) * n_int
+    x_psd = x_psd[:valid_length]
     
-    # Integrate over time, by reshaping and summing over axis (efficient)
-    x_psd = x_psd.reshape(x_psd.shape[0]//n_int, n_int, x_psd.shape[1])
+    # Integrate over time, by reshaping and averaging over axis (efficient)
+    x_psd = x_psd.reshape(valid_length // n_int, n_int, x_psd.shape[1])
     x_psd = x_psd.mean(axis=1)
     
     return x_psd
@@ -109,7 +116,7 @@ def brute_force_spectrometer(x, n_taps, n_chan, n_int, window_fn="hamming"):
 
     return x_psd
 
-def standard_fft_spectrometer(x, n_chan, n_int, window_fn="rectangular"):
+def standard_fft_spectrometer(x, n_chan, n_int, window_fn="rectangular", PSD=True):
     P = n_chan
     
     # 1. Truncate data to ensure it perfectly divides into blocks of P
@@ -137,6 +144,9 @@ def standard_fft_spectrometer(x, n_chan, n_int, window_fn="rectangular"):
     
     # 4. Take the FFT across the channels (axis=1)
     x_fft = np.fft.fft(x_blocks, axis=1)
+
+    if not PSD:
+        return x_fft
     
     # 5. Calculate Power
     power = np.real(x_fft * np.conj(x_fft))

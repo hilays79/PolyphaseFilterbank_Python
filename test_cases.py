@@ -6,12 +6,197 @@ import test_signals as ts
 import PFB
 import matplotlib.pyplot as plt
 import scipy
+import matplotlib.animation as animation
 
-def test_spectral_leakage_dirac_comb(n_taps, n_chan, n_windows, delta_period, delta_start, include_noise=True):
-    """ Test spectral leakage in a PFB spectrometer by generating a dirac comb signal and analyzing the resulting spectrum. """
-    data = ts.generate_dirac_comb_signal(n_taps=n_taps, n_chan=n_chan, n_windows=n_windows, delta_period=delta_period, delta_start=delta_start, include_noise=include_noise)
+def test_temporal_dirac_comb(n_taps, n_chan, n_windows, delta_period, delta_start, include_noise=False, real=True, is_complex=False, waterfall=True, temporal_plot=False):
+    """ Test temporal resolution in a PFB spectrometer by generating a dirac comb signal and analyzing the resulting spectrum. """
+    data = ts.generate_dirac_comb_signal(n_taps, n_chan, n_windows, delta_period, delta_start, include_noise=include_noise, real=real, is_complex=is_complex)
+    # Apply PFB spectrometer to the generated dirac comb signal
+    X_PFB = PFB.pfb_spectrometer(data, n_taps=n_taps, n_chan=n_chan, n_int=1, window_fn="hamming", PSD=False)
+    x_PFB_psd = PFB.pfb_spectrometer(data, n_taps=n_taps, n_chan=n_chan, n_int=1, window_fn="hamming", PSD=True)
+    x_fft = PFB.standard_fft_spectrometer(data, n_chan=n_chan, n_int=1, window_fn="rectangular", PSD=False)
+    x_fft_psd = PFB.standard_fft_spectrometer(data, n_chan=n_chan, n_int=1, window_fn="rectangular", PSD=True)
 
-    stop()
+    # 3. Convert PSD outputs to dB (Power)
+    x_PFB_psd_db = PFB.db(x_PFB_psd)
+    x_fft_psd_db = PFB.db(x_fft_psd)
+
+    # 4. Extract Real and Imaginary components for raw outputs (Amplitude)
+    X_PFB_real = np.real(X_PFB)
+    X_PFB_imag = np.imag(X_PFB)
+    x_fft_real = np.real(x_fft)
+    x_fft_imag = np.imag(x_fft)
+
+    if waterfall:
+        # 5. Plotting the 2x3 Surface (Waterfall) plots
+        fig, axs = plt.subplots(2, 3, figsize=(18, 10))
+        
+        plot_kwargs = {
+            'aspect': 'auto', 
+            'origin': 'lower', 
+            'cmap': 'viridis', 
+            'interpolation': 'nearest'
+        }
+
+        # --- TOP ROW: PFB ---
+        
+        # Top Left: Raw PFB (Real)
+        im00 = axs[0, 0].imshow(X_PFB_real, **plot_kwargs)
+        axs[0, 0].set_title("PFB Output (Real Part)")
+        axs[0, 0].set_xlabel("Channel")
+        axs[0, 0].set_ylabel("Time [Blocks]")
+        fig.colorbar(im00, ax=axs[0, 0], label="Amplitude")
+
+        # Top Middle: Raw PFB (Imaginary)
+        im01 = axs[0, 1].imshow(X_PFB_imag, **plot_kwargs)
+        axs[0, 1].set_title("PFB Output (Imaginary Part)")
+        axs[0, 1].set_xlabel("Channel")
+        axs[0, 1].set_ylabel("Time [Blocks]")
+        fig.colorbar(im01, ax=axs[0, 1], label="Amplitude")
+
+        # Top Right: PFB PSD
+        im02 = axs[0, 2].imshow(x_PFB_psd_db, **plot_kwargs)
+        axs[0, 2].set_title("PFB PSD Output [dB]")
+        axs[0, 2].set_xlabel("Channel")
+        axs[0, 2].set_ylabel("Time [Blocks]")
+        fig.colorbar(im02, ax=axs[0, 2], label="Power [dB]")
+
+        # --- BOTTOM ROW: Standard FFT ---
+        
+        # Bottom Left: Raw FFT (Real)
+        im10 = axs[1, 0].imshow(x_fft_real, **plot_kwargs)
+        axs[1, 0].set_title("Standard FFT Output (Real Part)")
+        axs[1, 0].set_xlabel("Channel")
+        axs[1, 0].set_ylabel("Time [Blocks]")
+        fig.colorbar(im10, ax=axs[1, 0], label="Amplitude")
+
+        # Bottom Middle: Raw FFT (Imaginary)
+        im11 = axs[1, 1].imshow(x_fft_imag, **plot_kwargs)
+        axs[1, 1].set_title("Standard FFT Output (Imaginary Part)")
+        axs[1, 1].set_xlabel("Channel")
+        axs[1, 1].set_ylabel("Time [Blocks]")
+        fig.colorbar(im11, ax=axs[1, 1], label="Amplitude")
+
+        # Bottom Right: FFT PSD
+        im12 = axs[1, 2].imshow(x_fft_psd_db, **plot_kwargs)
+        axs[1, 2].set_title("Standard FFT PSD Output [dB]")
+        axs[1, 2].set_xlabel("Channel")
+        axs[1, 2].set_ylabel("Time [Blocks]")
+        fig.colorbar(im12, ax=axs[1, 2], label="Power [dB]")
+
+        plt.suptitle(f"Dirac Comb Leakage Test (Period={delta_period}, Start={delta_start})", fontsize=16)
+        plt.tight_layout()
+        plt.show()
+    if temporal_plot:
+        # 6. Plotting the temporal response PSD of a single channel (e.g., Channel N/2 for maximum response)
+        plt.figure(figsize=(10, 6))
+        plt.plot(x_PFB_psd_db[:, n_chan//2], label='PFB PSD (Channel {})'.format(n_chan//2), color='blue')
+        plt.scatter((np.arange(x_fft_psd_db.shape[0])), x_fft_psd_db[:, n_chan//2], label='FFT PSD (Channel {})'.format(n_chan//2), color='orange', linewidth=2, alpha=1, marker='x')
+        plt.title(f"Temporal Response of Channel N/2 (Period={delta_period}, Start={delta_start})")
+        plt.xlabel("Time [Blocks]")
+        plt.ylabel("Amplitude")
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
+    return X_PFB_real, X_PFB_imag, x_PFB_psd_db, x_fft_real, x_fft_imag, x_fft_psd_db
+
+def animate_temporal_dirac_comb(n_taps, n_chan, n_windows, delta_start, N, fps=20, include_noise=False, real=True, is_complex=False, filename="dirac_comb_sweep.mp4"):
+    """ 
+    Creates an MP4 animation of the 2x3 subplot as the delta_period varies.
+    Relies directly on test_temporal_dirac_comb() for data generation.
+    """
+    fig, axs = plt.subplots(2, 3, figsize=(18, 10))
+    
+    plot_kwargs = {
+        'aspect': 'auto', 
+        'origin': 'lower', 
+        'cmap': 'viridis', 
+        'interpolation': 'nearest'
+    }
+
+    # 1. Initialize the plots with the first frame (delta_period = 256)
+    init_period = 256
+    
+    # Grab data from your test function (setting plotting flags to False)
+    X_PFB_real, X_PFB_imag, x_PFB_psd_db, x_fft_real, x_fft_imag, x_fft_psd_db = test_temporal_dirac_comb(
+        n_taps, n_chan, n_windows, init_period, delta_start, 
+        include_noise=include_noise, real=real, is_complex=is_complex, 
+        waterfall=False, temporal_plot=False
+    )
+
+    # Top Row: PFB
+    im00 = axs[0, 0].imshow(X_PFB_real, **plot_kwargs)
+    axs[0, 0].set_title("PFB Output (Real Part)")
+    fig.colorbar(im00, ax=axs[0, 0], label="Amplitude")
+
+    im01 = axs[0, 1].imshow(X_PFB_imag, **plot_kwargs)
+    axs[0, 1].set_title("PFB Output (Imaginary Part)")
+    fig.colorbar(im01, ax=axs[0, 1], label="Amplitude")
+
+    im02 = axs[0, 2].imshow(x_PFB_psd_db, **plot_kwargs)
+    axs[0, 2].set_title("PFB PSD Output [dB]")
+    fig.colorbar(im02, ax=axs[0, 2], label="Power [dB]")
+
+    # Bottom Row: Standard FFT
+    im10 = axs[1, 0].imshow(x_fft_real, **plot_kwargs)
+    axs[1, 0].set_title("Standard FFT Output (Real Part)")
+    fig.colorbar(im10, ax=axs[1, 0], label="Amplitude")
+
+    im11 = axs[1, 1].imshow(x_fft_imag, **plot_kwargs)
+    axs[1, 1].set_title("Standard FFT Output (Imaginary Part)")
+    fig.colorbar(im11, ax=axs[1, 1], label="Amplitude")
+
+    im12 = axs[1, 2].imshow(x_fft_psd_db, **plot_kwargs)
+    axs[1, 2].set_title("Standard FFT PSD Output [dB]")
+    fig.colorbar(im12, ax=axs[1, 2], label="Power [dB]")
+
+    for ax in axs.flat:
+        ax.set_xlabel("Channel")
+        ax.set_ylabel("Time [Blocks]")
+
+    plt.tight_layout()
+    fig.subplots_adjust(top=0.92) 
+
+    # 2. Define the update function for the animation
+    def update(frame):
+        current_period = 256 + frame
+        print(f"Generating frame {frame+1}/{N} with delta_period={current_period}...")
+        
+        # Call your test function again silently for the new period
+        r_pfb, i_pfb, psd_pfb, r_fft, i_fft, psd_fft = test_temporal_dirac_comb(
+            n_taps, n_chan, n_windows, current_period, delta_start, 
+            include_noise=include_noise, real=real, is_complex=is_complex, 
+            waterfall=False, temporal_plot=False
+        )
+
+        im00.set_data(r_pfb)
+        im01.set_data(i_pfb)
+        im02.set_data(psd_pfb)
+        im10.set_data(r_fft)
+        im11.set_data(i_fft)
+        im12.set_data(psd_fft)
+
+        # Dynamically rescale color bars
+        im00.set_clim(vmin=np.min(r_pfb), vmax=np.max(r_pfb))
+        im01.set_clim(vmin=np.min(i_pfb), vmax=np.max(i_pfb))
+        im02.set_clim(vmin=np.min(psd_pfb), vmax=np.max(psd_pfb))
+        im10.set_clim(vmin=np.min(r_fft), vmax=np.max(r_fft))
+        im11.set_clim(vmin=np.min(i_fft), vmax=np.max(i_fft))
+        im12.set_clim(vmin=np.min(psd_fft), vmax=np.max(psd_fft))
+
+        fig.suptitle(f"Dirac Comb Leakage Test (Period={current_period}, Start={delta_start})", fontsize=16)
+
+        return im00, im01, im02, im10, im11, im12
+
+    # 3. Create and save the animation
+    filename=f"dirac_comb_sweep_N{N}_fps{fps}.mp4"
+    print(f"Generating animation with {N} frames at {fps} fps...")
+    ani = animation.FuncAnimation(fig, update, frames=N, blit=False)
+    path = "/Users/hilays79/Fourier_Space/Data/"
+    ani.save(path+filename, fps=fps, writer='ffmpeg')
+    print(f"Animation successfully saved to {filename}")
+    plt.close(fig)
 
 def test_spectral_leakage_sine(n_taps, n_chan, n_windows, freq, include_noise=True, plot=True, complex_sine=False):
     """ Test spectral leakage in a PFB spectrometer by generating a sine wave signal and analyzing the resulting spectrum. """
@@ -169,14 +354,15 @@ if __name__ == "__main__":
     n_taps = 4
     n_chan = 256
     n_windows = 100
-    delta_period = 16
-    delta_start = 1
+    delta_period = int(256*4*100)
+    delta_start = 256*4+1
     freq=1
     # freq = (64)*np.pi/256
-    # test_spectral_leakage_dirac_comb(n_taps, n_chan, n_windows, delta_period, delta_start, include_noise=False)
-    # test_spectral_leakage_sine(n_taps, n_chan, n_windows, freq, include_noise=False, complex_sine=False)
     # Angular frequency sweep from 0 to slightly past bin 2's center
     highest_channel = 16
     omegas = np.linspace(0.002, highest_channel*1.1*2*np.pi/n_chan, 1000)
-    test_channel_response_sweep(n_taps=n_taps, n_chan=n_chan, n_windows=n_windows, freqs=omegas, channels_to_plot=np.arange(0, highest_channel),include_noise=False, complex_sine=False)
+    # test_spectral_leakage_sine(n_taps, n_chan, n_windows, freq, include_noise=False, complex_sine=False)
+    # test_channel_response_sweep(n_taps=n_taps, n_chan=n_chan, n_windows=n_windows, freqs=omegas, channels_to_plot=np.arange(0, highest_channel),include_noise=False, complex_sine=False)
     # get_analytical_channel_response(n_taps=n_taps, n_chan=n_chan, channel=0, window_fn="hamming", plot=True)
+    test_temporal_dirac_comb(n_taps=n_taps, n_chan=n_chan, n_windows=n_windows, delta_period=delta_period, delta_start=delta_start, include_noise=False, real=True, is_complex=False, waterfall=True, temporal_plot=True)
+    # animate_temporal_dirac_comb(n_taps=n_taps, n_chan=n_chan, n_windows=n_windows, delta_start=delta_start, N=100, fps=10, include_noise=False, real=True, is_complex=False)

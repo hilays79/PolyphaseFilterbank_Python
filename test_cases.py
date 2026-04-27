@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env python3
 
 import numpy as np
 from ipdb import set_trace as stop
@@ -354,13 +354,13 @@ if __name__ == "__main__":
     n_taps = 4
     n_chan = 256
     n_windows = 100
-    delta_period = int(256*4*100)
-    delta_start = 256*4+1
+    delta_period = int(n_chan*n_windows*n_taps)
+    delta_start = 1025
     freq=1
     # freq = (64)*np.pi/256
     # Angular frequency sweep from 0 to slightly past bin 2's center
-    highest_channel = 16
-    omegas = np.linspace(0.002, highest_channel*1.1*2*np.pi/n_chan, 1000)
+    # highest_channel = 16
+    # omegas = np.linspace(0.002, highest_channel*1.1*2*np.pi/n_chan, 1000)
     # test_spectral_leakage_sine(n_taps, n_chan, n_windows, freq, include_noise=False, complex_sine=False)
     # test_channel_response_sweep(n_taps=n_taps, n_chan=n_chan, n_windows=n_windows, freqs=omegas, channels_to_plot=np.arange(0, highest_channel),include_noise=False, complex_sine=False)
     # get_analytical_channel_response(n_taps=n_taps, n_chan=n_chan, channel=0, window_fn="hamming", plot=True)

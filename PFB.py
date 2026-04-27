@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env python3
 
 # Simple implementation of a polyphase filterbank (PFB), FFT spectrometer, and brute-force spectrometer.
 # PFB heavily based on Danny C. Price, Spectrometers and Polyphase Filterbanks in Radio Astronomy, 2016. arXiv 1607.03579.

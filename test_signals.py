@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/usr/bin/env python3
+
 import numpy as np
 from ipdb import set_trace as stop
 import numpy as np

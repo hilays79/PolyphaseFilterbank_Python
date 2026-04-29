@@ -235,11 +235,11 @@ def run_dada_PFB(python_pfb_function, signal_type, n_taps, n_chan_in, n_chan_out
     return output_filepath, pfb_output
 
 if __name__ == "__main__":
-    M, P, W, freq = 4, 256, 100, 1
+    M, P, W, freq = 4, 256, 100, 1.0
     delta_period, delta_start = 257, 0
     nbit = 64
     include_noise = False
-    signal_type = "complex_phasors" # Can be "sinusoidals", "complex_phasors", or "dirac_deltas"
+    signal_type = "dirac_deltas" # Can be "sinusoidals", "complex_phasors", or "dirac_deltas"
     output_filepath, pfb_output = run_dada_PFB(
         python_pfb_function=lambda data, M, P: pfb_spectrometer(data, M, P), 
         signal_type=signal_type,

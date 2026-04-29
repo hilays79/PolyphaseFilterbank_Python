@@ -71,7 +71,7 @@ def create_binary_test_signals(n_taps, n_chan, n_windows, freq, delta_period, de
         f.write(header_bytes)
         f.write(binary_signal.tobytes())
 
-    print(f"Input data written to: {filepath} | Shape: {binary_signal.shape}")
+    # print(f"Input data written to: {filepath} | Shape: {binary_signal.shape}")
     return filepath
 
 def read_dada_file(filepath):

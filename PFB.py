@@ -8,13 +8,15 @@ from ipdb import set_trace as stop
 import matplotlib.pyplot as plt
 import time
 import test_signals as ts
+import generate_binary_data as gbd
+import os
 
 def db(x):
     """ Convert linear value to dB value """
     return 10*np.log10(x)
 
 def generate_win_coeffs(M, P, window_fn="hamming"):
-    win_coeffs = scipy.signal.get_window(window_fn, M*P)
+    win_coeffs = scipy.signal.get_window(window_fn, M*P, fftbins=False)
     sinc       = scipy.signal.firwin(M * P, cutoff=1.0/P, window="rectangular")
     win_coeffs *= sinc
     return win_coeffs
@@ -38,7 +40,7 @@ def pfb_filterbank(x, win_coeffs, M, P):
     x_pfb = fft(x_fir, P)
     return x_pfb
 
-def pfb_spectrometer(x, n_taps, n_chan, n_int, window_fn="hamming", PSD=True):
+def pfb_spectrometer(x, n_taps, n_chan, n_int=1, window_fn="hamming", PSD=True):
     M = n_taps
     P = n_chan
     
@@ -64,10 +66,9 @@ def pfb_spectrometer(x, n_taps, n_chan, n_int, window_fn="hamming", PSD=True):
     # Integrate over time, by reshaping and averaging over axis (efficient)
     x_psd = x_psd.reshape(valid_length // n_int, n_int, x_psd.shape[1])
     x_psd = x_psd.mean(axis=1)
-    
     return x_psd
 
-def brute_force_spectrometer(x, n_taps, n_chan, n_int, window_fn="hamming"):
+def brute_force_spectrometer(x, n_taps, n_chan, n_int=1, window_fn="hamming"):
     # Since PFB divides an FIR filter with M*P taps into P filters with M taps each, the total number of taps here is M*P
     M = n_taps
     P = n_chan
@@ -116,7 +117,7 @@ def brute_force_spectrometer(x, n_taps, n_chan, n_int, window_fn="hamming"):
 
     return x_psd
 
-def standard_fft_spectrometer(x, n_chan, n_int, window_fn="rectangular", PSD=True):
+def standard_fft_spectrometer(x, n_chan, n_int=1, window_fn="rectangular", PSD=True):
     P = n_chan
     
     # 1. Truncate data to ensure it perfectly divides into blocks of P
@@ -161,37 +162,128 @@ def standard_fft_spectrometer(x, n_chan, n_int, window_fn="rectangular", PSD=Tru
     
     return x_psd
 
-if __name__ == "__main__":
-    M, P, W = 4, 256, 100
-    data = ts.generate_sine_signal(n_taps=M, n_chan=P, n_windows=W, freq=0.1, include_noise=False) # freq in radians/sample
-    start_PFB = time.time()
-    X_psd = pfb_spectrometer(data, n_taps=M, n_chan=P, n_int=2, window_fn="hamming")
-    end_PFB = time.time()
+
+def get_expected_input_filepath(signal_type, n_taps, n_chan, n_windows, include_noise, freq=None, delta_period=None, delta_start=None):
+    """Helper to construct the expected input file path based on your naming rules."""
+    savepath_base = "/Users/hilays79/Fourier_Space/Data/input_files/"
     
-    start_brute = time.time()
-    X_psd_brute = brute_force_spectrometer(data, n_taps=M, n_chan=P, n_int=2, window_fn="hamming")
-    end_brute = time.time()
+    if signal_type in ["sinusoidals", "complex_phasors"]:
+        filenamestart = f"{signal_type}_freq{freq}_M{n_taps}_P{n_chan}_W{n_windows}_noise{include_noise}"
+    elif signal_type == "dirac_deltas":
+        filenamestart = f"{signal_type}_d{delta_period}_s{delta_start}_noise{include_noise}"
+    else:
+        raise ValueError(f"Unsupported signal type: {signal_type}")
+        
+    return os.path.join(savepath_base, signal_type, f"{filenamestart}.dada")
 
-    start_fft = time.time()
-    X_psd_fft = standard_fft_spectrometer(data, n_chan=P, n_int=2, window_fn="rectangular")
-    end_fft = time.time()
 
-    print(f"PFB time: {end_PFB - start_PFB}")
-    print(f"Brute force time: {end_brute - start_brute}")
-    print(f"FFT time: {end_fft - start_fft}")
+def run_dada_PFB(python_pfb_function, signal_type, n_taps, n_chan_in, n_chan_out, n_windows, nbit, include_noise=False, freq=None, delta_period=None, delta_start=None):
+    """
+    End-to-end pipeline: Checks for input file, generates if missing, reads, runs PFB, and saves output.
+    
+    Parameters:
+    - python_pfb_function: Your actual python function for the filterbank (e.g., PFB_filterbank)
+    - n_chan_in: The number of channels for the INPUT signal (usually 1)
+    - n_chan_out: The number of channels your PFB will output
+    """
+    
+    # 1. Determine where the input file *should* be
+    input_filepath = get_expected_input_filepath(
+        signal_type, n_taps, n_chan_out, n_windows, include_noise, freq, delta_period, delta_start
+    )
+    
+    # 2. Generate the input file if it does not exist
+    if not os.path.exists(input_filepath):
+        print(f"Input file not found. Generating new signal at: {input_filepath}")
+        gbd.create_binary_test_signals(
+            n_taps=n_taps, 
+            n_chan=n_chan_out, # weird but this is how it is currently structured. 
+            n_windows=n_windows, 
+            freq=freq, 
+            delta_period=delta_period, 
+            delta_start=delta_start, 
+            nbit=nbit, 
+            include_noise=include_noise, 
+            signal_type=signal_type
+        )
+    else:
+        print(f"Found existing input file: {input_filepath}")
+        
+    # 3. Read the data and header
+    header, input_data = gbd.read_dada_file(input_filepath)
+    print(f"Read input data shape: {input_data.shape}")
+    
+    # 4. Run the PFB
+    # Note: Adjust the arguments here if your python PFB function expects different inputs
+    print("Running PFB...")
+    pfb_output = python_pfb_function(input_data, n_taps, n_chan_out)
+    
+    # 5. Save the output
+    output_filepath = gbd.save_pfb_to_dada(
+        pfb_data=pfb_output, 
+        input_header_dict=header, 
+        signal_type=signal_type, 
+        n_taps=n_taps, 
+        n_windows=n_windows, 
+        include_noise=include_noise, 
+        freq=freq, 
+        delta_period=delta_period, 
+        delta_start=delta_start
+    )
+    
+    print("Pipeline complete!")
+    return output_filepath, pfb_output
 
-    # plt.imshow(db(X_psd)[0], cmap='viridis', aspect='auto')
-    plt.plot(db(X_psd)[0], c='#cc0000', label='PFB')
-    plt.plot(db(X_psd_brute)[0]-2, c='#0000cc', label='Brute Force (shifted down by 2 dB for visibility)')
-    plt.plot(db(X_psd_fft)[0]+2, c='#00cc00', label='FFT (shifted up by 2 dB for visibility)')
-    plt.title('Time taken for PFB=%.4f sec, Brute Force=%.4f sec, FFT=%.4f sec' % (end_PFB - start_PFB, end_brute - start_brute, end_fft - start_fft))
-    plt.ylim(-50, 30)
-    plt.xlim(-P/100, P/2)
-    plt.xlabel("Channel")
-    plt.ylabel("Power [dB]")
-    plt.legend()
-    plt.show()
+if __name__ == "__main__":
+    M, P, W, freq = 4, 256, 100, 1
+    delta_period, delta_start = 257, 0
+    nbit = 64
+    include_noise = False
+    signal_type = "complex_phasors" # Can be "sinusoidals", "complex_phasors", or "dirac_deltas"
+    output_filepath, pfb_output = run_dada_PFB(
+        python_pfb_function=lambda data, M, P: pfb_spectrometer(data, M, P), 
+        signal_type=signal_type,
+        n_taps=M,
+        n_chan_in=1,
+        n_chan_out=P,
+        n_windows=W,
+        nbit=nbit,
+        include_noise=include_noise,
+        freq=freq,
+        delta_period=delta_period,
+        delta_start=delta_start
+    )
     stop()
-    # plt.colorbar()
+
+    # data = ts.generate_sine_signal(n_taps=M, n_chan=P, n_windows=W, freq=0.1, include_noise=False) # freq in radians/sample
+    # start_PFB = time.time()
+    # X_psd = pfb_spectrometer(data, n_taps=M, n_chan=P, n_int=2, window_fn="hamming")
+    # end_PFB = time.time()
+    
+    # start_brute = time.time()
+    # X_psd_brute = brute_force_spectrometer(data, n_taps=M, n_chan=P, n_int=2, window_fn="hamming")
+    # end_brute = time.time()
+
+    # start_fft = time.time()
+    # X_psd_fft = standard_fft_spectrometer(data, n_chan=P, n_int=2, window_fn="rectangular")
+    # end_fft = time.time()
+
+    # print(f"PFB time: {end_PFB - start_PFB}")
+    # print(f"Brute force time: {end_brute - start_brute}")
+    # print(f"FFT time: {end_fft - start_fft}")
+
+    # # plt.imshow(db(X_psd)[0], cmap='viridis', aspect='auto')
+    # plt.plot(db(X_psd)[0], c='#cc0000', label='PFB')
+    # plt.plot(db(X_psd_brute)[0]-2, c='#0000cc', label='Brute Force (shifted down by 2 dB for visibility)')
+    # plt.plot(db(X_psd_fft)[0]+2, c='#00cc00', label='FFT (shifted up by 2 dB for visibility)')
+    # plt.title('Time taken for PFB=%.4f sec, Brute Force=%.4f sec, FFT=%.4f sec' % (end_PFB - start_PFB, end_brute - start_brute, end_fft - start_fft))
+    # plt.ylim(-50, 30)
+    # plt.xlim(-P/100, P/2)
     # plt.xlabel("Channel")
-    # plt.ylabel("Time")    
+    # plt.ylabel("Power [dB]")
+    # plt.legend()
+    # plt.show()
+    # stop()
+    # # plt.colorbar()
+    # # plt.xlabel("Channel")
+    # # plt.ylabel("Time")    

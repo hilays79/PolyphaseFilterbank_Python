@@ -82,7 +82,7 @@ def run_benchmark(in_NBIT_python, in_NBIT_cpp, out_NBIT_python, out_NBIT_cpp):
     delta_period, delta_start = 257, 0
     include_noise = False
 
-    cpp_executable = "/Users/hilays79/Fourier_Space/codes/PFB_cpp/objs/PFB_app" 
+    cpp_executable = "/Users/hilays79/Fourier_Space/codes/PFB_cpp/build/pfb_app" 
 
     print(f"{'W':<7} | {'Py Time (s)':<12} | {'C++ Tot (s)':<12} | {'C++ Set (s)':<12} | {'C++ Exe (s)':<12} | {'C++ Set/Exec':<12} | {'Speedup':<9} | {'Max Diff':<10}")
     print("-" * 105)

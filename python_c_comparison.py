@@ -9,9 +9,13 @@ import time
 import subprocess
 import PFB
 
+# Dynamically find the repo root
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..', '..'))
+
 def get_output_filepath(language, signal_type, n_taps, n_chan, n_windows, include_noise, nbit, freq=None, delta_period=None, delta_start=None):
     """Helper to construct the expected output file path for either Python or C++."""
-    savepath_base = f"/Users/hilays79/Fourier_Space/Data/output_files/{language}/"
+    savepath_base = os.path.join(REPO_ROOT, "Data", "output_files", language)
     
     freq_str = str(freq)
     if freq is not None and '.' not in freq_str:
@@ -74,7 +78,6 @@ def calculate_comparison_metrics(py_array, cpp_array):
     print(f"Mean Absolute Difference: {mean_diff}")
     print(f"Mean Squared Error: {mse}")
 
-# <--- CHANGED: Accept separated in_NBIT variables
 def run_benchmark(in_NBIT_python, in_NBIT_cpp, out_NBIT_python, out_NBIT_cpp):
     windows = [100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200] 
     M, P, freq = 4, 256, 1.0
@@ -82,7 +85,8 @@ def run_benchmark(in_NBIT_python, in_NBIT_cpp, out_NBIT_python, out_NBIT_cpp):
     delta_period, delta_start = 257, 0
     include_noise = False
 
-    cpp_executable = "/Users/hilays79/Fourier_Space/codes/PFB_cpp/build/pfb_app" 
+    cpp_executable = os.path.join(REPO_ROOT, "codes", "PFB_cpp", "build", "pfb_app")
+    cpp_build_dir = os.path.join(REPO_ROOT, "codes", "PFB_cpp", "build")
 
     print(f"{'W':<7} | {'Py Time (s)':<12} | {'C++ Tot (s)':<12} | {'C++ Set (s)':<12} | {'C++ Exe (s)':<12} | {'C++ Set/Exec':<12} | {'Speedup':<9} | {'Max Diff':<10}")
     print("-" * 105)
@@ -94,17 +98,15 @@ def run_benchmark(in_NBIT_python, in_NBIT_cpp, out_NBIT_python, out_NBIT_cpp):
             freq_str += '.0'
         filenamestart = f"{signal_type}_freq{freq_str}_M{M}_P{P}_W{W}_noise{include_noise}"
         
-        # <--- CHANGED: Safely construct and generate Python input path
-        input_filepath_py = f"/Users/hilays79/Fourier_Space/Data/input_files/{signal_type}/{in_NBIT_python}-bit/{filenamestart}.dada"
+        input_filepath_py = os.path.join(REPO_ROOT, "Data", "input_files", signal_type, f"{in_NBIT_python}-bit", f"{filenamestart}.dada")
+        
         if not os.path.exists(input_filepath_py):
             gbd.create_binary_test_signals(
                 n_taps=M, n_chan=P, n_windows=W, freq=freq,
                 delta_period=delta_period, delta_start=delta_start,
                 in_NBIT=in_NBIT_python, include_noise=include_noise, signal_type=signal_type
             )
-            
-        # <--- CHANGED: Safely construct and generate C++ input path
-        input_filepath_cpp = f"/Users/hilays79/Fourier_Space/Data/input_files/{signal_type}/{in_NBIT_cpp}-bit/{filenamestart}.dada"
+        input_filepath_cpp = os.path.join(REPO_ROOT, "Data", "input_files", signal_type, f"{in_NBIT_cpp}-bit", f"{filenamestart}.dada")    
         if not os.path.exists(input_filepath_cpp):
             gbd.create_binary_test_signals(
                 n_taps=M, n_chan=P, n_windows=W, freq=freq,
@@ -122,6 +124,7 @@ def run_benchmark(in_NBIT_python, in_NBIT_cpp, out_NBIT_python, out_NBIT_cpp):
         # Dynamically pass W, in_NBIT_cpp, and out_NBIT_cpp to the C++ executable
         result = subprocess.run(
             [cpp_executable, str(W), str(in_NBIT_cpp), str(out_NBIT_cpp)], 
+            cwd=cpp_build_dir,
             capture_output=True, 
             text=True
         )
@@ -165,7 +168,6 @@ if __name__ == "__main__":
     include_noise = False
     signal_type = "complex_phasors"
     
-    # <--- CHANGED: Set all 4 bit depths here independently
     in_NBIT_python = 64
     out_NBIT_python = 64 
     in_NBIT_cpp = 32
@@ -186,6 +188,5 @@ if __name__ == "__main__":
     
     # calculate_comparison_metrics(py_array, cpp_array)
     
-    # <--- CHANGED: Passing the separated inputs
     run_benchmark(in_NBIT_python, in_NBIT_cpp, out_NBIT_python, out_NBIT_cpp) 
     stop()

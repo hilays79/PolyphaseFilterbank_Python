@@ -5,11 +5,13 @@ import numpy as np
 import test_signals as ts
 from ipdb import set_trace as stop
 
-# <--- CHANGED: Argument changed from nbit to in_NBIT
+# Dynamically find the repo root
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..', '..'))
+
 def create_binary_test_signals(n_taps, n_chan, n_windows, freq, delta_period, delta_start, in_NBIT, include_noise=False, signal_type="sinusoidals", save=True):
-    savepath_base = "/Users/hilays79/Fourier_Space/Data/input_files/"
+    savepath_base = os.path.join(REPO_ROOT, "Data", "input_files")
     
-    # <--- CHANGED: Format freq to match C++ (e.g., 1 becomes 1.0)
     freq_str = str(freq)
     if '.' not in freq_str:
         freq_str += '.0'
@@ -17,12 +19,10 @@ def create_binary_test_signals(n_taps, n_chan, n_windows, freq, delta_period, de
     # 1. Generate the signal
     if signal_type == "sinusoidals":
         binary_signal = ts.generate_sine_signal(n_taps, n_chan, n_windows, freq, include_noise=include_noise, complex_sine=False)
-        # <--- CHANGED: Use freq_str
         filenamestart = f"{signal_type}_freq{freq_str}_M{n_taps}_P{n_chan}_W{n_windows}_noise{include_noise}"
         ndim = 2
     elif signal_type == "complex_phasors":
         binary_signal = ts.generate_sine_signal(n_taps, n_chan, n_windows, freq, include_noise=include_noise, complex_sine=True)
-        # <--- CHANGED: Use freq_str
         filenamestart = f"{signal_type}_freq{freq_str}_M{n_taps}_P{n_chan}_W{n_windows}_noise{include_noise}"
         ndim = 2
     elif signal_type == "dirac_deltas":
@@ -38,12 +38,10 @@ def create_binary_test_signals(n_taps, n_chan, n_windows, freq, delta_period, de
     # Generate filename
     filename = f"{filenamestart}.dada"
     
-    # <--- CHANGED: Injected f"{in_NBIT}-bit" into the directory path
     filepath = os.path.join(savepath_base, signal_type, f"{in_NBIT}-bit", filename)
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
 
     # 2. Cast to correct bit depth
-    # <--- CHANGED: nbit -> in_NBIT
     if in_NBIT == 32:
         dtype = np.complex64 if ndim == 2 else np.float32
     elif in_NBIT == 64:
@@ -66,7 +64,7 @@ def create_binary_test_signals(n_taps, n_chan, n_windows, freq, delta_period, de
         "NCHAN": "1",          # Fixed to 1 for input data
         "NPOL": "1",
         "NDIM": str(ndim),
-        "NBIT": str(in_NBIT),  # <--- CHANGED: nbit -> in_NBIT
+        "NBIT": str(in_NBIT),
         "BW": "2",
         "RESOLUTION": "2048",
         "INSTRUMENT": "dspsr",
@@ -149,7 +147,7 @@ def save_pfb_to_dada(pfb_data, input_header_dict, signal_type, n_taps, n_windows
     Saves PFB output to a .dada file, inheriting NBIT and NDIM from the input.
     Mirrors the input directory and filename structure, but saves to the output directory.
     """
-    savepath_base = "/Users/hilays79/Fourier_Space/Data/output_files/python/"
+    savepath_base = os.path.join(REPO_ROOT, "Data", "output_files", "python")
     
     # 1. Inherit metadata from the input header
     nbit = int(input_header_dict["NBIT"])
@@ -171,12 +169,10 @@ def save_pfb_to_dada(pfb_data, input_header_dict, signal_type, n_taps, n_windows
         if freq is None:
             raise ValueError(f"'freq' parameter is required for {signal_type}")
         
-        # <--- CHANGED: Format freq to match C++ (e.g., 1 becomes 1.0)
         freq_str = str(freq)
         if '.' not in freq_str:
             freq_str += '.0'
             
-        # <--- CHANGED: Use freq_str
         filenamestart = f"{signal_type}_freq{freq_str}_M{n_taps}_P{n_chan}_W{n_windows}_noise{include_noise}"
     
     elif signal_type == "dirac_deltas":
@@ -189,7 +185,6 @@ def save_pfb_to_dada(pfb_data, input_header_dict, signal_type, n_taps, n_windows
 
     filename = f"{filenamestart}.dada"
     
-    # <--- CHANGED: Injected f"{nbit}-bit" into the directory path (using inherited nbit)
     filepath = os.path.join(savepath_base, signal_type, f"{nbit}-bit", filename)
     
     # Ensure the target directory exists
@@ -233,15 +228,13 @@ if __name__ == "__main__":
     freq = 1
     delta_period = 257
     delta_start = 0
-    in_NBIT = 64 # <--- CHANGED: nbit -> in_NBIT
+    in_NBIT = 64
     include_noise = False
     
-    # <--- CHANGED: Updated commented-out calls to use in_NBIT
     # signal_type = "complex_phasors" 
     # create_binary_test_signals(M, P, W, freq, delta_period, delta_start, in_NBIT, include_noise, signal_type)
     # signal_type = "dirac_deltas"
     # create_binary_test_signals(M, P, W, freq, delta_period, delta_start, in_NBIT, include_noise, signal_type)
     
-    # <--- CHANGED: Updated hardcoded path to include /64-bit/ and freq1.0
-    aa, bb = read_dada_file("/Users/hilays79/Fourier_Space/Data/input_files/complex_phasors/64-bit/complex_phasors_freq1.0_M4_P256_W100_noiseFalse.dada")
+    aa, bb = read_dada_file(os.path.join(REPO_ROOT, "Data", "input_files", "complex_phasors", "64-bit", "complex_phasors_freq1.0_M4_P256_W100_noiseFalse.dada"))
     stop()

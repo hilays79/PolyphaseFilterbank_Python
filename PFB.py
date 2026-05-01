@@ -11,6 +11,10 @@ import test_signals as ts
 import generate_binary_data as gbd
 import os
 
+# Dynamically find the repo root
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..', '..'))
+
 def db(x):
     """ Convert linear value to dB value """
     return 10*np.log10(x)
@@ -165,7 +169,7 @@ def standard_fft_spectrometer(x, n_chan, n_int=1, window_fn="rectangular", PSD=T
 
 def get_expected_input_filepath(signal_type, n_taps, n_chan, n_windows, include_noise, freq=None, delta_period=None, delta_start=None):
     """Helper to construct the expected input file path based on your naming rules."""
-    savepath_base = "/Users/hilays79/Fourier_Space/Data/input_files/"
+    savepath_base = os.path.join(REPO_ROOT, "Data", "input_files")
     
     if signal_type in ["sinusoidals", "complex_phasors"]:
         filenamestart = f"{signal_type}_freq{freq}_M{n_taps}_P{n_chan}_W{n_windows}_noise{include_noise}"
